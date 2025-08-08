@@ -2,7 +2,7 @@
   "name": "복음 중심 하루 계획",
   "short_name": "하루계획",
   "description": "하느님과 함께하는 하루 계획표",
-  "start_url": "./index.html",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3B82F6",
