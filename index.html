@@ -1,21 +1,673 @@
-{
-  "name": "복음 중심 하루 계획",
-  "short_name": "하루계획",
-  "description": "하느님과 함께하는 하루 계획표",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3B82F6",
-  "icons": [
-    {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 24 24'%3E%3Crect width='100%25' height='100%25' rx='28' fill='%233B82F6'/%3E%3Cpath d='M6 7h12v2H6zM6 11h12v2H6zM6 15h12v2H6z' fill='%23fff'/%3E%3C/svg%3E",
-      "sizes": "192x192",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 24 24'%3E%3Crect width='100%25' height='100%25' rx='48' fill='%233B82F6'/%3E%3Cpath d='M6 7h12v2H6zM6 11h12v2H6zM6 15h12v2H6z' fill='%23fff'/%3E%3C/svg%3E",
-      "sizes": "512x512",
-      "type": "image/svg+xml"
-    }
-  ]
-}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>하루 계획표</title>
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="./manifest.json">
+
+    <meta name="theme-color" content="#3B82F6" />
+    <style>
+        /* 기본 스타일 (약간 정리, 모바일 우선) */
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%}
+        body{
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+            background:linear-gradient(135deg,#EBF4FF 0%,#F3E8FF 100%);
+            padding:16px;
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+        }
+        .container{max-width:720px;margin:0 auto}
+        .header{
+            background:rgba(255,255,255,0.95);
+            padding:18px;border-radius:14px;backdrop-filter:blur(8px);
+            margin-bottom:16px;border:1px solid rgba(0,0,0,0.04);
+        }
+        .title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .title-text{font-size:20px;font-weight:700;color:#1F2937}
+        .subtitle-text{color:#6B7280;margin-top:8px}
+        .edit-inline{display:flex;gap:8px;margin-top:8px}
+        .edit-inline input{flex:1;padding:8px;border-radius:8px;border:1px solid #D1D5DB}
+        .btn{padding:8px 12px;border-radius:8px;border:none;background:#3B82F6;color:#fff;cursor:pointer;font-weight:600}
+        .btn.ghost{background:transparent;color:#374151;border:1px solid rgba(0,0,0,0.06)}
+        .progress-container{margin-top:12px;background:white;border-radius:12px;padding:8px}
+        .progress-bar{height:12px;border-radius:12px;background:linear-gradient(90deg,#3B82F6,#8B5CF6);width:0%}
+        .progress-text{font-size:13px;color:#6B7280;margin-top:8px}
+
+        /* 섹션 */
+        #sections-container{display:flex;flex-direction:column;gap:12px}
+        .section{
+            background:rgba(255,255,255,0.9);border-radius:12px;padding:12px;border:1px solid rgba(0,0,0,0.04);
+            transition:box-shadow .12s;
+        }
+        .section.dragging{opacity:.6;box-shadow:0 6px 24px rgba(0,0,0,0.08)}
+        .section-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .section-title{display:flex;align-items:center;gap:8px;font-weight:700;color:#1F2937}
+        .section-controls{display:flex;align-items:center;gap:8px}
+        .collapse-btn{background:none;border:none;padding:6px;border-radius:8px;cursor:pointer}
+        .add-task{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+        .add-task input{padding:10px;border-radius:8px;border:1px solid #D1D5DB}
+        .task-list{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+        .task-item{display:flex;gap:12px;align-items:flex-start;padding:10px;border-radius:10px}
+        .task-item:hover{background:rgba(255,255,255,0.6)}
+        .checkbox{width:20px;height:20px;border-radius:6px;border:2px solid #D1D5DB;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+        .checkbox.checked{background:#10B981;border-color:#10B981;color:white}
+        .task-content{flex:1}
+        .task-text{font-size:14px;color:#374151;margin-bottom:6px}
+        .task-time{font-size:12px;color:#6B7280}
+        .task-text.completed{text-decoration:line-through;color:#9CA3AF}
+        .more-btn{background:none;border:0;padding:6px;border-radius:6px;cursor:pointer}
+        .more-menu{position:fixed;background:white;border-radius:8px;padding:6px;border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 24px rgba(0,0,0,0.08);z-index:1000}
+        .more-menu button{display:block;padding:8px 12px;background:transparent;border:none;text-align:left;width:100%;cursor:pointer}
+        .reflection{background:rgba(255,255,255,0.95);border-radius:12px;padding:12px;margin-top:12px}
+        .reflection textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #D1D5DB;resize:vertical}
+
+        /* 색상 바 */
+        .spiritual{border-left:4px solid #3B82F6}
+        .gospel{border-left:4px solid #EF4444}
+        .creative{border-left:4px solid #F59E0B}
+        .community{border-left:4px solid #10B981}
+        .selfcare{border-left:4px solid #8B5CF6}
+
+        /* 반응형 */
+        @media(min-width:760px){
+            .title-text{font-size:24px}
+            .subtitle-text{font-size:15px}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header" id="headerBox">
+            <div class="title-row">
+                <div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <div class="title-text" id="appTitleDisplay">복음 중심 하루 계획</div>
+                        <button class="btn ghost" id="editHeaderBtn" title="배너 편집">편집</button>
+                    </div>
+                    <div class="subtitle-text" id="appSubtitleDisplay">하느님의 뜻 안에서 창조적이고 의미 있는 하루를</div>
+                </div>
+                <div style="text-align:right">
+                    <div class="progress-container">
+                        <div style="background:#F3F4F6;border-radius:12px;padding:4px">
+                            <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">완료: 0 / 0 (0%)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- inline edit area -->
+            <div class="edit-inline" id="headerEditArea" style="display:none;margin-top:12px">
+                <input id="appTitleInput" placeholder="앱 제목을 입력하세요" />
+                <input id="appSubtitleInput" placeholder="부제목을 입력하세요" />
+                <button class="btn" id="saveHeaderBtn">저장</button>
+                <button class="btn ghost" id="cancelHeaderBtn">취소</button>
+            </div>
+        </div>
+
+        <div id="sections-container"></div>
+
+        <div class="reflection" id="reflectionBox">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-weight:700">📖 오늘의 성찰</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button class="collapse-btn" id="toggleReflectionBtn" title="접기/펼치기">▾</button>
+                </div>
+            </div>
+            <div id="reflectionContent" style="margin-top:10px">
+                <div style="margin-bottom:10px">
+                    <div style="font-weight:500;margin-bottom:6px">하느님의 사랑을 어떻게 경험했나요?</div>
+                    <textarea rows="2" id="reflection1" placeholder="자유롭게 적어보세요..."></textarea>
+                </div>
+                <div style="margin-bottom:10px">
+                    <div style="font-weight:500;margin-bottom:6px">오늘 가장 창조적이었던 순간은?</div>
+                    <textarea rows="2" id="reflection2" placeholder="작은 순간들도 소중해요..."></textarea>
+                </div>
+                <div>
+                    <div style="font-weight:500;margin-bottom:6px">내일 더 나은 하루를 위한 다짐</div>
+                    <textarea rows="2" id="reflection3" placeholder="하느님과 함께하는 내일을..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align:center;margin-top:14px;color:#6B7280;font-size:12px">
+            "그러므로 오늘 할 일을 내일로 미루지 말라. 주님 안에서 하루하루를 충실히 살아가라." 💕
+        </div>
+    </div>
+
+    <!-- 더보기 메뉴(전역) -->
+    <div id="moreMenu" class="more-menu" style="display:none"></div>
+
+    <script>
+        /* ----------------------------
+           로컬스토리지 키 정의
+           ---------------------------- */
+        const KEY_SECTIONS = 'planner_sections_v1';
+        const KEY_META = 'planner_meta_v1'; // 제목, 부제
+        const KEY_REFLECTIONS = 'planner_reflections_v1';
+        const KEY_COLLAPSED = 'planner_collapsed_v1';
+
+        /* ----------------------------
+           기본 섹션 데이터
+           ---------------------------- */
+        const DEFAULT_SECTIONS = [
+            {
+                id: 'spiritual',
+                title: '📖 영적 기초 다지기',
+                class: 'spiritual',
+                items: [
+                    { id: 'morning_prayer', text: '새벽 기도/묵상 시간 (30분)', time: '06:00-06:30', checked:false },
+                    { id: 'scripture', text: '성경 읽기 및 묵상', time: '06:30-07:00', checked:false },
+                    { id: 'gratitude', text: '감사 일기 3가지 적기', time: '저녁', checked:false }
+                ]
+            },
+            {
+                id: 'gospel',
+                title: '❤️ 복음을 삶으로 선포하기',
+                class: 'gospel',
+                items: [
+                    { id: 'kindness', text: '주변 사람에게 친절한 행동 하나 실천하기', time: '수시', checked:false },
+                    { id: 'listening', text: '누군가의 이야기 진심으로 듣기', time: '수시', checked:false },
+                    { id: 'encouragement', text: '격려나 위로의 말 건네기', time: '수시', checked:false },
+                    { id: 'service', text: '작은 봉사나 도움 제공하기', time: '오후', checked:false }
+                ]
+            },
+            {
+                id: 'creative',
+                title: '💡 창조적 하루 살기',
+                class: 'creative',
+                items: [
+                    { id: 'creative_time', text: '창조적 활동 시간 (글쓰기/그림/음악/공예 등)', time: '09:00-11:00', checked:false },
+                    { id: 'learning', text: '새로운 것 배우기 또는 기술 향상', time: '14:00-15:30', checked:false },
+                    { id: 'reflection', text: '오늘의 창조적 순간들 기록하기', time: '저녁', checked:false },
+                    { id: 'innovation', text: '일상의 작은 것 하나 개선해보기', time: '수시', checked:false }
+                ]
+            },
+            {
+                id: 'community',
+                title: '👥 공동체와 연결',
+                class: 'community',
+                items: [
+                    { id: 'family_time', text: '가족과 의미 있는 시간 보내기', time: '저녁', checked:false },
+                    { id: 'community', text: '신앙 공동체나 모임 참여/연락', time: '오후', checked:false },
+                    { id: 'neighbor', text: '이웃이나 지역사회 관심 갖기', time: '수시', checked:false }
+                ]
+            },
+            {
+                id: 'selfcare',
+                title: '☕ 몸과 마음 돌보기',
+                class: 'selfcare',
+                items: [
+                    { id: 'exercise', text: '몸을 움직이는 시간 (산책/운동)', time: '08:00-09:00', checked:false },
+                    { id: 'healthy_meal', text: '정성스럽게 식사 준비하고 감사히 먹기', time: '식사시간', checked:false },
+                    { id: 'rest', text: '충분한 휴식과 여유 시간', time: '20:00-21:00', checked:false },
+                    { id: 'evening_prayer', text: '하루를 마무리하는 기도', time: '21:30', checked:false }
+                ]
+            }
+        ];
+
+        /* ----------------------------
+           상태 변수
+           ---------------------------- */
+        let sections = []; // 실제 사용되는 섹션 배열
+        let meta = { title: '복음 중심 하루 계획', subtitle: '하느님의 뜻 안에서 창조적이고 의미 있는 하루를' };
+        let reflections = { r1: '', r2: '', r3: '' };
+        let collapsedState = { /* sectionId: true/false, reflection: true/false */ };
+
+        /* ----------------------------
+           유틸: 로컬스토리지 로드/저장
+           ---------------------------- */
+        function loadAll(){
+            const saved = localStorage.getItem(KEY_SECTIONS);
+            if (saved) {
+                try {
+                    sections = JSON.parse(saved);
+                } catch(e){
+                    sections = JSON.parse(JSON.stringify(DEFAULT_SECTIONS));
+                }
+            } else {
+                sections = JSON.parse(JSON.stringify(DEFAULT_SECTIONS));
+            }
+
+            const metaRaw = localStorage.getItem(KEY_META);
+            if (metaRaw) {
+                try { meta = JSON.parse(metaRaw); } catch(e){}
+            }
+
+            const refRaw = localStorage.getItem(KEY_REFLECTIONS);
+            if (refRaw) {
+                try { reflections = JSON.parse(refRaw); } catch(e){}
+            }
+
+            const colRaw = localStorage.getItem(KEY_COLLAPSED);
+            if (colRaw) {
+                try { collapsedState = JSON.parse(colRaw); } catch(e){}
+            } else {
+                // 기본값: 펼쳐짐
+                collapsedState = { reflection: false };
+                sections.forEach(s => collapsedState[s.id] = false);
+            }
+        }
+
+        function saveAll(){
+            localStorage.setItem(KEY_SECTIONS, JSON.stringify(sections));
+            localStorage.setItem(KEY_META, JSON.stringify(meta));
+            localStorage.setItem(KEY_REFLECTIONS, JSON.stringify(reflections));
+            localStorage.setItem(KEY_COLLAPSED, JSON.stringify(collapsedState));
+        }
+
+        /* ----------------------------
+           날짜/진행도 업데이트
+           ---------------------------- */
+        function updateDateAndProgress(){
+            // 날짜 텍스트 (헤더 아래에 표시되어 있었으나 삭제 — 필요하면 다시 추가하세요)
+            const total = sections.reduce((sum,s)=>sum + s.items.length,0);
+            const done = sections.reduce((sum,s)=>sum + s.items.filter(i=>i.checked).length,0);
+            const pct = total? Math.round((done/total)*100) : 0;
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressText').textContent = `완료: ${done} / ${total} (${pct}%)`;
+        }
+
+        /* ----------------------------
+           렌더링
+           ---------------------------- */
+        function renderSections(){
+            const container = document.getElementById('sections-container');
+            container.innerHTML = '';
+
+            sections.forEach(section => {
+                const sec = document.createElement('div');
+                sec.className = 'section ' + section.class;
+                sec.dataset.id = section.id;
+                sec.draggable = true;
+
+                // header
+                const header = document.createElement('div');
+                header.className = 'section-header';
+
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'section-title';
+                titleDiv.innerHTML = `<span>${section.title}</span>`;
+
+                const controls = document.createElement('div');
+                controls.className = 'section-controls';
+
+                // drag handle (for UX only)
+                const dragHandle = document.createElement('button');
+                dragHandle.className = 'collapse-btn';
+                dragHandle.title = '섹션 드래그로 이동';
+                dragHandle.textContent = '≡';
+                dragHandle.style.fontWeight = '700';
+
+                // collapse toggle
+                const collapseBtn = document.createElement('button');
+                collapseBtn.className = 'collapse-btn';
+                collapseBtn.textContent = collapsedState[section.id] ? '▸' : '▾';
+                collapseBtn.title = '접기/펼치기';
+                collapseBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    collapsedState[section.id] = !collapsedState[section.id];
+                    saveAll();
+                    renderSections();
+                };
+
+                // add controls
+                controls.appendChild(dragHandle);
+                controls.appendChild(collapseBtn);
+
+                header.appendChild(titleDiv);
+                header.appendChild(controls);
+                sec.appendChild(header);
+
+                // content (tasks)
+                const content = document.createElement('div');
+                content.style.marginTop = '10px';
+                content.style.display = collapsedState[section.id] ? 'none' : 'block';
+
+                // task list
+                const taskList = document.createElement('div');
+                taskList.className = 'task-list';
+
+                // sort: 완료된 항목을 아래로
+                const itemsSorted = [...section.items].sort((a,b)=> (a.checked === b.checked) ? 0 : (a.checked ? 1 : -1));
+
+                itemsSorted.forEach(item => {
+                    const task = document.createElement('div');
+                    task.className = 'task-item';
+
+                    // checkbox
+                    const chk = document.createElement('div');
+                    chk.className = 'checkbox' + (item.checked ? ' checked' : '');
+                    chk.innerHTML = item.checked ? '✓' : '';
+                    chk.onclick = (ev) => {
+                        ev.stopPropagation();
+                        item.checked = !item.checked;
+                        saveAll();
+                        updateDateAndProgress();
+                        renderSections();
+                    };
+
+                    // content
+                    const cont = document.createElement('div');
+                    cont.className = 'task-content';
+
+                    const textDiv = document.createElement('div');
+                    textDiv.className = 'task-text' + (item.checked ? ' completed' : '');
+                    textDiv.textContent = item.text;
+
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'task-time';
+                    timeDiv.textContent = item.time || '';
+
+                    cont.appendChild(textDiv);
+                    cont.appendChild(timeDiv);
+
+                    // three-dot menu
+                    const moreBtn = document.createElement('button');
+                    moreBtn.className = 'more-btn';
+                    moreBtn.innerHTML = '⋯';
+                    moreBtn.onclick = (ev) => {
+                        ev.stopPropagation();
+                        openMoreMenu(ev.clientX, ev.clientY, section.id, item.id);
+                    };
+
+                    // assemble
+                    task.appendChild(chk);
+                    task.appendChild(cont);
+                    task.appendChild(moreBtn);
+
+                    taskList.appendChild(task);
+                });
+
+                content.appendChild(taskList);
+
+                // add-task area (보이도록 편집 모드에서만)
+                const addWrap = document.createElement('div');
+                addWrap.className = 'add-task';
+
+                const tInput = document.createElement('input');
+                tInput.placeholder = '새로운 할 일을 입력하세요';
+
+                const timeInput = document.createElement('input');
+                timeInput.placeholder = '시간 (예: 09:00-10:00)';
+
+                const addBtn = document.createElement('button');
+                addBtn.className = 'btn';
+                addBtn.textContent = '➕ 추가하기';
+                addBtn.onclick = () => {
+                    const text = tInput.value.trim();
+                    if (!text) return;
+                    const newTask = { id: 'custom_' + Date.now(), text, time: timeInput.value.trim() || '수시', checked:false };
+                    section.items.push(newTask);
+                    tInput.value = '';
+                    timeInput.value = '';
+                    saveAll();
+                    updateDateAndProgress();
+                    renderSections();
+                };
+
+                addWrap.appendChild(tInput);
+                addWrap.appendChild(timeInput);
+                addWrap.appendChild(addBtn);
+
+                content.appendChild(addWrap);
+
+                sec.appendChild(content);
+
+                // drag events
+                sec.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', section.id);
+                    sec.classList.add('dragging');
+                });
+                sec.addEventListener('dragend', (e) => {
+                    sec.classList.remove('dragging');
+                });
+
+                // allow drop on sections container
+                sec.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+                sec.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    const targetId = section.id;
+                    if (draggedId && draggedId !== targetId){
+                        reorderSections(draggedId, targetId);
+                        saveAll();
+                        renderSections();
+                    }
+                });
+
+                container.appendChild(sec);
+            });
+
+            updateDateAndProgress();
+        }
+
+        /* ----------------------------
+           더보기 메뉴(전역) - Edit / Delete 동작
+           ---------------------------- */
+        const moreMenu = document.getElementById('moreMenu');
+        function openMoreMenu(x,y, sectionId, itemId){
+            moreMenu.style.left = (x+6) + 'px';
+            moreMenu.style.top = (y+6) + 'px';
+            moreMenu.style.display = 'block';
+            moreMenu.innerHTML = '';
+
+            const btnEdit = document.createElement('button');
+            btnEdit.textContent = '편집';
+            btnEdit.onclick = (e) => {
+                e.stopPropagation();
+                moreMenu.style.display = 'none';
+                startEditItem(sectionId, itemId);
+            };
+            const btnDelete = document.createElement('button');
+            btnDelete.textContent = '삭제';
+            btnDelete.onclick = (e) => {
+                e.stopPropagation();
+                moreMenu.style.display = 'none';
+                if (confirm('이 항목을 삭제하시겠어요?')) {
+                    deleteItem(sectionId, itemId);
+                }
+            };
+
+            moreMenu.appendChild(btnEdit);
+            moreMenu.appendChild(btnDelete);
+        }
+
+        document.addEventListener('click', (e)=>{
+            // 더보기 메뉴 닫기
+            if (moreMenu.style.display === 'block'){
+                moreMenu.style.display = 'none';
+            }
+        });
+
+        function findSectionById(id){
+            return sections.find(s => s.id === id);
+        }
+
+        function findItem(sectionId, itemId){
+            const s = findSectionById(sectionId);
+            if (!s) return null;
+            return s.items.find(i => i.id === itemId);
+        }
+
+        function deleteItem(sectionId, itemId){
+            const s = findSectionById(sectionId);
+            if (!s) return;
+            s.items = s.items.filter(i => i.id !== itemId);
+            saveAll();
+            renderSections();
+        }
+
+        function startEditItem(sectionId, itemId){
+            // inline 편집: 해당 항목의 텍스트를 입력창으로 바꿔서 저장
+            const s = findSectionById(sectionId);
+            if (!s) return;
+            const item = s.items.find(i => i.id === itemId);
+            if (!item) return;
+
+            // 렌더링을 다시 하여 DOM 참조를 얻음
+            renderSections();
+
+            // find the task element in DOM
+            const container = document.getElementById('sections-container');
+            const secEl = Array.from(container.children).find(ch => ch.dataset.id === sectionId);
+            if (!secEl) return;
+            const taskItems = secEl.querySelectorAll('.task-item');
+            let targetEl = null;
+            for (const t of taskItems){
+                const txt = t.querySelector('.task-text');
+                if (txt && txt.textContent === item.text) { targetEl = t; break; }
+            }
+            if (!targetEl) return;
+
+            const contentDiv = targetEl.querySelector('.task-content');
+            contentDiv.innerHTML = `
+                <input class="edit-text" style="width:100%;padding:8px;border-radius:8px;border:1px solid #D1D5DB" value="${escapeHtml(item.text)}" />
+                <input class="edit-time" style="margin-top:6px;padding:8px;border-radius:8px;border:1px solid #D1D5DB" value="${escapeHtml(item.time||'')}" />
+                <div style="margin-top:6px;display:flex;gap:8px">
+                    <button class="btn save-edit">저장</button>
+                    <button class="btn ghost cancel-edit">취소</button>
+                </div>
+            `;
+
+            const saveBtn = contentDiv.querySelector('.save-edit');
+            const cancelBtn = contentDiv.querySelector('.cancel-edit');
+            const txtInput = contentDiv.querySelector('.edit-text');
+            const timeInput = contentDiv.querySelector('.edit-time');
+
+            saveBtn.onclick = (ev)=>{
+                ev.stopPropagation();
+                const newText = txtInput.value.trim();
+                const newTime = timeInput.value.trim() || '수시';
+                if (!newText) { alert('텍스트를 입력해주세요'); return; }
+                item.text = newText;
+                item.time = newTime;
+                saveAll();
+                renderSections();
+            };
+            cancelBtn.onclick = (ev)=>{
+                ev.stopPropagation();
+                renderSections();
+            };
+        }
+
+        function escapeHtml(s){
+            return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+        }
+
+        /* ----------------------------
+           섹션 재배열 함수
+           ---------------------------- */
+        function reorderSections(draggedId, targetId){
+            const fromIdx = sections.findIndex(s => s.id === draggedId);
+            const toIdx = sections.findIndex(s => s.id === targetId);
+            if (fromIdx === -1 || toIdx === -1) return;
+            const [item] = sections.splice(fromIdx,1);
+            sections.splice(toIdx,0,item);
+        }
+
+        /* ----------------------------
+           헤더 편집
+           ---------------------------- */
+        const editHeaderBtn = document.getElementById('editHeaderBtn');
+        const headerEditArea = document.getElementById('headerEditArea');
+        const appTitleDisplay = document.getElementById('appTitleDisplay');
+        const appSubtitleDisplay = document.getElementById('appSubtitleDisplay');
+        const appTitleInput = document.getElementById('appTitleInput');
+        const appSubtitleInput = document.getElementById('appSubtitleInput');
+        const saveHeaderBtn = document.getElementById('saveHeaderBtn');
+        const cancelHeaderBtn = document.getElementById('cancelHeaderBtn');
+
+        editHeaderBtn.onclick = () => {
+            headerEditArea.style.display = 'flex';
+            appTitleInput.value = meta.title || '';
+            appSubtitleInput.value = meta.subtitle || '';
+            appTitleInput.focus();
+        };
+        cancelHeaderBtn.onclick = () => {
+            headerEditArea.style.display = 'none';
+        };
+        saveHeaderBtn.onclick = () => {
+            meta.title = appTitleInput.value.trim() || '하루 계획표';
+            meta.subtitle = appSubtitleInput.value.trim() || '';
+            headerEditArea.style.display = 'none';
+            updateHeaderTexts();
+            saveAll();
+        };
+        function updateHeaderTexts(){
+            appTitleDisplay.textContent = meta.title || '';
+            appSubtitleDisplay.textContent = meta.subtitle || '';
+        }
+
+        /* ----------------------------
+           Reflection 접기/펼치기 & 저장
+           ---------------------------- */
+        const toggleReflectionBtn = document.getElementById('toggleReflectionBtn');
+        const reflectionContent = document.getElementById('reflectionContent');
+        function updateReflectionBox(){
+            const collapsed = !!collapsedState.reflection;
+            reflectionContent.style.display = collapsed ? 'none' : 'block';
+            toggleReflectionBtn.textContent = collapsed ? '▸' : '▾';
+        }
+        toggleReflectionBtn.onclick = () => {
+            collapsedState.reflection = !collapsedState.reflection;
+            updateReflectionBox();
+            saveAll();
+        };
+        // reflection textarea 저장
+        ['reflection1','reflection2','reflection3'].forEach(id=>{
+            const el = document.getElementById(id);
+            el.addEventListener('input', (e) => {
+                reflections.r1 = document.getElementById('reflection1').value;
+                reflections.r2 = document.getElementById('reflection2').value;
+                reflections.r3 = document.getElementById('reflection3').value;
+                saveAll();
+            });
+        });
+
+        /* ----------------------------
+           초기화
+           ---------------------------- */
+        function init(){
+            loadAll();
+            updateHeaderTexts();
+            // 반영: reflection textarea 값 채우기
+            document.getElementById('reflection1').value = reflections.r1 || '';
+            document.getElementById('reflection2').value = reflections.r2 || '';
+            document.getElementById('reflection3').value = reflections.r3 || '';
+
+            // ensure collapsedState has keys for all sections
+            sections.forEach(s => { if (collapsedState[s.id] === undefined) collapsedState[s.id] = false; });
+
+            updateReflectionBox();
+            renderSections();
+            updateDateAndProgress();
+
+            // PWA: install prompt handling (브라우저가 제공하면 뜸)
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                // 필요하면 이 이벤트를 저장해서 별도 설치 UI를 만들 수 있습니다.
+                console.log('beforeinstallprompt captured', e);
+            });
+
+            // 서비스워커 등록
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').then(reg=>{
+                    console.log('ServiceWorker 등록됨', reg.scope);
+                }).catch(err=>{
+                    console.warn('ServiceWorker 등록 실패', err);
+                });
+            }
+        }
+
+        // 시작
+        init();
+    </script>
+</body>
+</html>
